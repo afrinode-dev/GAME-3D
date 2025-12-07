@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Gabonais 3D - Libreville Adventure 🇬🇦</title>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Stats.js pour FPS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r17/Stats.min.js"></script>
+    
+    <!-- Font Awesome pour icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a3d1f 0%, #0c5b2d 50%, #083d1a 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            cursor: none;
+        }
+        
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: none;
+        }
+        
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        /* Écran de démarrage */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(10, 61, 31, 0.95), rgba(8, 61, 26, 0.95)), 
+                        url('data:image/svg+xml,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="%23009e60"/><path d="M20,20 L80,20 L80,80 L20,80 Z" fill="none" stroke="%23fcd116" stroke-width="2"/><circle cx="50" cy="50" r="15" fill="%23fcd116"/></svg>');
+            background-size: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .game-title {
+            font-size: 5rem;
+            color: #fcd116;
+            text-shadow: 0 0 20px rgba(252, 209, 22, 0.7);
+            margin-bottom: 20px;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+        
+        .game-subtitle {
+            font-size: 1.8rem;
+            color: #ffffff;
+            margin-bottom: 40px;
+            max-width: 800px;
+            line-height: 1.5;
+        }
+        
+        .start-btn {
+            background: linear-gradient(45deg, #009e60, #00cc88);
+            color: white;
+            border: none;
+            padding: 18px 50px;
+            font-size: 1.5rem;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 15px;
+            transition: all 0.3s;
+            border: 3px solid #fcd116;
+            font-weight: bold;
+            letter-spacing: 1px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(45deg, #00cc88, #009e60);
+        }
+        
+        .start-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        
+        .hud-section {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 15px;
+            border: 2px solid #fcd116;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            min-width: 250px;
+        }
+        
+        .hud-left {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .hud-right {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        
+        .stat-bar {
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 5px 0;
+            position: relative;
+        }
+        
+        .stat-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .health-fill { 
+            background: linear-gradient(90deg, #ff4444, #ff8888);
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+        }
+        
+        .xp-fill { 
+            background: linear-gradient(90deg, #009e60, #00cc88);
+            box-shadow: 0 0 10px rgba(0, 158, 96, 0.5);
+        }
+        
+        .ammo-fill { 
+            background: linear-gradient(90deg, #fcd116, #ffe066);
+            box-shadow: 0 0 10px rgba(252, 209, 22, 0.5);
+        }
+        
+        .stat-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label i {
+            margin-right: 8px;
+            color: #fcd116;
+        }
+        
+        .location-display {
+            background: rgba(58, 117, 196, 0.8);
+            border-color: #3a75c4;
+            text-align: center;
+            padding: 12px 25px;
+        }
+        
+        .weapon-display {
+            background: rgba(158, 0, 96, 0.8);
+            border-color: #9e0060;
+            text-align: center;
+            padding: 12px 25px;
+        }
+        
+        /* Quête */
+        #quest-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 800px;
+            z-index: 101;
+        }
+        
+        .quest-container {
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #009e60;
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .quest-title {
+            color: #fcd116;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .quest-progress-bar {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        
+        .quest-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #009e60, #00cc88);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+        
+        /* Messages et notifications */
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #fcd116;
+            border-radius: 15px;
+            padding: 25px 40px;
+            z-index: 200;
+            text-align: center;
+            max-width: 600px;
+            display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+        
+        #notification {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            background: rgba(0, 158, 96, 0.9);
+            border: 2px solid #fcd116;
+            border-radius: 10px;
+            padding: 15px 25px;
+            z-index: 200;
+            text-align: center;
+            max-width: 400px;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Écran de pause */
+        #pause-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .pause-title {
+            font-size: 4rem;
+            color: #fcd116;
+            margin-bottom: 40px;
+            text-shadow: 0 0 20px rgba(252, 209, 22, 0.7);
+        }
+        
+        /* Inventaire */
+        #inventory-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 70%;
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #009e60;
+            border-radius: 20px;
+            padding: 30px;
+            z-index: 1000;
+            display: none;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
+        }
+        
+        .inventory-title {
+            color: #fcd116;
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #009e60;
+            padding-bottom: 15px;
+        }
+        
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            height: 60%;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .inventory-item {
+            background: rgba(58, 117, 196, 0.3);
+            border: 2px solid #3a75c4;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .inventory-item:hover {
+            transform: translateY(-5px);
+            background: rgba(58, 117, 196, 0.5);
+            box-shadow: 0 5px 15px rgba(58, 117, 196, 0.4);
+        }
+        
+        .item-icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        /* Croix de visée */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fcd116;
+            font-size: 30px;
+            text-shadow: 0 0 10px black;
+            z-index: 99;
+            pointer-events: none;
+        }
+        
+        /* Contrôles mobiles */
+        #mobile-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 30px;
+            display: none;
+            z-index: 90;
+            pointer-events: none;
+        }
+        
+        .mobile-controls-group {
+            display: flex;
+            justify-content: space-between;
+            pointer-events: auto;
+        }
+        
+        .mobile-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(0, 158, 96, 0.8);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            border: 3px solid #fcd116;
+            user-select: none;
+            touch-action: manipulation;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.1s;
+        }
+        
+        .mobile-btn:active {
+            transform: scale(0.9);
+            background: rgba(0, 158, 96, 1);
+        }
+        
+        .joystick-area {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            border: 3px solid #fcd116;
+            pointer-events: auto;
+        }
+        
+        .joystick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70px;
+            height: 70px;
+            background: rgba(0, 158, 96, 0.9);
+            border-radius: 50%;
+            border: 3px solid #ffffff;
+            transition: transform 0.1s;
+        }
+        
+        /* Instructions */
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 2px solid #3a75c4;
+            max-width: 300px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .instructions kbd {
+            background: #333;
+            padding: 3px 10px;
+            border-radius: 5px;
+            border: 1px solid #666;
+            font-family: monospace;
+            margin: 0 3px;
+            font-size: 0.9rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .game-title { font-size: 3.5rem; }
+            .game-subtitle { font-size: 1.4rem; }
+            .hud-section { min-width: 200px; padding: 12px 15px; }
+            .stat-label { font-size: 1rem; }
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-controls { display: block; }
+            .instructions { display: none; }
+            .hud-top { flex-direction: column; gap: 15px; }
+            .hud-right { align-items: flex-start; }
+            .game-title { font-size: 2.5rem; }
+            .game-subtitle { font-size: 1.2rem; }
+            .start-btn { padding: 15px 30px; font-size: 1.2rem; }
+        }
+        
+        @media (max-width: 480px) {
+            .game-title { font-size: 2rem; }
+            .hud-section { min-width: auto; width: 100%; }
+            .mobile-btn { width: 60px; height: 60px; font-size: 24px; }
+            .joystick-area { width: 120px; height: 120px; }
+            .joystick { width: 60px; height: 60px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Écran de démarrage -->
+    <div id="start-screen">
+        <h1 class="game-title">🇬🇦 RPG GABONAIS 3D</h1>
+        <p class="game-subtitle">
+            Explorez les villes du Gabon dans cette aventure unique ! 
+            Combattez les bandits, aidez les habitants et découvrez les secrets de Libreville, 
+            Port-Gentil et Franceville.
+        </p>
+        
+        <div class="btn-group">
+            <button id="start-btn" class="start-btn">
+                <i class="fas fa-play"></i> Nouvelle Partie
+            </button>
+            <button id="continue-btn" class="start-btn" style="background: linear-gradient(45deg, #3a75c4, #5a95e4);">
+                <i class="fas fa-redo"></i> Continuer
+            </button>
+            <button id="controls-btn" class="start-btn" style="background: linear-gradient(45deg, #9e0060, #be2080);">
+                <i class="fas fa-gamepad"></i> Contrôles
+            </button>
+        </div>
+        
+        <div style="margin-top: 50px; color: #aaa; font-size: 0.9rem;">
+            <p>Déplacez-vous avec ZQSD, tirez avec CLIC GAUCHE, interagissez avec E</p>
+            <p>Développé avec Three.js - Un jeu 100% Gabonais</p>
+        </div>
+    </div>
+    
+    <!-- Conteneur du jeu -->
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-top">
+                <div class="hud-left">
+                    <div class="hud-section">
+                        <div class="stat-label">
+                            <span><i class="fas fa-heart"></i> SANTÉ</span>
+                            <span id="health-text">100/100</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill health-fill" id="health-bar" style="width: 100%"></div>
+                        </div>
+                        
+                        <div class="stat-label">
+                            <span><i class="fas fa-star"></i> XP</span>
+                            <span id="xp-text">0/100</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill xp-fill" id="xp-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="hud-section location-display">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span id="location-text">Libreville, Glass</span>
+                    </div>
+                </div>
+                
+                <div class="hud-right">
+                    <div class="hud-section">
+                        <div class="stat-label">
+                            <span><i class="fas fa-crosshairs"></i> MUNITIONS</span>
+                            <span id="ammo-text">30/30</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill ammo-fill" id="ammo-bar" style="width: 100%"></div>
+                        </div>
+                        
+                        <div class="stat-label">
+                            <span><i class="fas fa-skull-crossbones"></i> ENNEMIS</span>
+                            <span id="enemy-count">5</span>
+                        </div>
+                        
+                        <div class="stat-label">
+                            <span><i class="fas fa-trophy"></i> SCORE</span>
+                            <span id="score">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="hud-section weapon-display">
+                        <i class="fas fa-gun"></i>
+                        <span id="weapon-text">Pistolet Makarov</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Indicateur de quête -->
+        <div id="quest-indicator" style="display: none;">
+            <div class="quest-container">
+                <div class="quest-title">
+                    <i class="fas fa-scroll"></i> QUÊTE ACTIVE
+                </div>
+                <div id="quest-text" style="margin-bottom: 10px;"></div>
+                <div class="quest-progress-bar">
+                    <div id="quest-progress" class="quest-progress" style="width: 0%"></div>
+                </div>
+                <div style="text-align: center; font-size: 0.9rem; color: #aaa;">
+                    Progression: <span id="quest-progress-text">0/5</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Croix de visée -->
+        <div id="crosshair">+</div>
+        
+        <!-- Contrôles mobiles -->
+        <div id="mobile-controls">
+            <div class="mobile-controls-group">
+                <div class="joystick-area" id="joystickArea">
+                    <div class="joystick" id="joystick"></div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="mobile-btn" id="mobile-jump">
+                        <i class="fas fa-arrow-up"></i>
+                    </div>
+                    <div class="mobile-btn" id="mobile-interact">
+                        <i class="fas fa-comment"></i>
+                    </div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="mobile-btn" id="mobile-shoot" style="background: rgba(255, 68, 68, 0.9);">
+                        <i class="fas fa-crosshairs"></i>
+                    </div>
+                    <div class="mobile-btn" id="mobile-inventory" style="background: rgba(158, 0, 96, 0.9);">
+                        <i class="fas fa-backpack"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Instructions PC -->
+        <div class="instructions">
+            <div style="color: #fcd116; font-weight: bold; margin-bottom: 8px;">
+                <i class="fas fa-keyboard"></i> CONTRÔLES
+            </div>
+            <div><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> : Déplacement</div>
+            <div><kbd>ESPACE</kbd> : Sauter</div>
+            <div><kbd>CLIC GAUCHE</kbd> : Tirer</div>
+            <div><kbd>E</kbd> : Interagir</div>
+            <div><kbd>I</kbd> : Inventaire</div>
+            <div><kbd>ECHAP</kbd> : Pause</div>
+            <div><kbd>F</kbd> : Lampe torche</div>
+            <div><kbd>1-4</kbd> : Changer arme</div>
+        </div>
+    </div>
+    
+    <!-- Message box -->
+    <div id="message-box">
+        <div id="message-text" style="font-size: 1.3rem; line-height: 1.5;"></div>
+    </div>
+    
+    <!-- Notification -->
+    <div id="notification">
+        <div id="notification-text" style="font-size: 1.1rem; font-weight: bold;"></div>
+    </div>
+    
+    <!-- Écran de pause -->
+    <div id="pause-screen">
+        <h2 class="pause-title">PAUSE</h2>
+        <div style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
+            <button id="resume-btn" class="start-btn" style="width: 300px;">
+                <i class="fas fa-play"></i> Reprendre
+            </button>
+            <button id="save-btn" class="start-btn" style="background: linear-gradient(45deg, #3a75c4, #5a95e4); width: 300px;">
+                <i class="fas fa-save"></i> Sauvegarder
+            </button>
+            <button id="quit-btn" class="start-btn" style="background: linear-gradient(45deg, #9e0060, #be2080); width: 300px;">
+                <i class="fas fa-home"></i> Menu principal
+            </button>
+        </div>
+    </div>
+    
+    <!-- Panel d'inventaire -->
+    <div id="inventory-panel">
+        <h2 class="inventory-title">
+            <i class="fas fa-backpack"></i> INVENTAIRE
+        </h2>
+        
+        <div id="inventory-items" class="inventory-grid">
+            <!-- Les items seront ajoutés dynamiquement ici -->
+        </div>
+        
+        <div style="display: flex; justify-content: space-around; margin-top: 20px;">
+            <div style="background: rgba(0, 0, 0, 0.5); padding: 15px; border-radius: 10px; text-align: center; min-width: 150px;">
+                <div style="color: #fcd116; font-weight: bold;">STATISTIQUES</div>
+                <div>Niveau: <span id="inv-level">1</span></div>
+                <div>XP: <span id="inv-xp">0/100</span></div>
+                <div>Santé: <span id="inv-health">100/100</span></div>
+                <div>Ennemis tués: <span id="inv-kills">0</span></div>
+                <div>Score: <span id="inv-score">0</span></div>
+                <div>Temps: <span id="inv-time">0s</span></div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+                <button id="close-inventory" class="start-btn" style="padding: 12px 30px;">
+                    <i class="fas fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="game.js"></script>
+</body>
+</html>

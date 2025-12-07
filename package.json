@@ -1,0 +1,71 @@
+{
+  "name": "rpg-gabonais-3d",
+  "version": "1.0.0",
+  "description": "Un jeu RPG 3D en temps réel se déroulant dans les villes du Gabon (Libreville, Port-Gentil, Franceville). Combattez les bandits, aidez les habitants et explorez des environnements uniques.",
+  "main": "game.js",
+  "scripts": {
+    "start": "npx http-server . -p 3000",
+    "dev": "npx http-server . -p 3000 -c-1",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "echo \"No build step required for this project\"",
+    "deploy": "echo \"Add your deployment command here\"",
+    "format": "prettier --write \"**/*.{js,html,css,json,md}\""
+  },
+  "keywords": [
+    "game",
+    "rpg",
+    "3d",
+    "gabon",
+    "africa",
+    "threejs",
+    "webgl",
+    "fps",
+    "adventure",
+    "libreville",
+    "port-gentil",
+    "franceville"
+  ],
+  "author": "Équipe RPG Gabonais 3D",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/rpg-gabonais-3d.git"
+  },
+  "bugs": {
+    "url": "https://github.com/username/rpg-gabonais-3d/issues"
+  },
+  "homepage": "https://github.com/username/rpg-gabonais-3d#readme",
+  "dependencies": {
+    "three": "^0.128.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.0.0",
+    "prettier": "^2.5.1"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not op_mini all",
+    "not ie <= 11"
+  ],
+  "files": [
+    "index.html",
+    "game.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "contributors": [
+    {
+      "name": "Développeur Principal",
+      "email": "dev@example.com"
+    }
+  ],
+  "funding": {
+    "type": "individual",
+    "url": "https://buymeacoffee.com/example"
+  }
+}

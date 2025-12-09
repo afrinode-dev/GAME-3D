@@ -149,7 +149,9 @@
                 charisma: 1,
                 crafting: 1,
                 survival: 1
-            }
+            },
+            currentCity: 0,
+            currentDistrict: 0
         },
         
         // ============================================
@@ -744,7 +746,12 @@
             animals: [],
             effects: [],
             projectiles: [],
-            decorations: []
+            decorations: [],
+            sun: null,
+            ground: null,
+            water: null,
+            skybox: null,
+            flashlight: null
         },
         
         // ============================================
@@ -888,10 +895,14 @@
                 // Initialiser les systèmes de jeu
                 this.initGameSystems();
                 
-                // Démarrer le jeu
-                this.startGame();
-                
                 console.log("✅ Jeu initialisé avec succès!");
+                
+                // Cacher l'écran de chargement et afficher le menu
+                setTimeout(() => {
+                    document.getElementById('loading-screen').style.display = 'none';
+                    document.getElementById('start-screen').style.display = 'flex';
+                }, 500);
+                
             } catch (error) {
                 console.error("❌ Erreur d'initialisation:", error);
                 this.showErrorMessage("Erreur d'initialisation du jeu: " + error.message);
@@ -2235,6 +2246,14 @@
                 invWeight: document.getElementById('inv-weight'),
                 invMaxWeight: document.getElementById('inv-max-weight')
             };
+            
+            // Vérifier les éléments critiques
+            if (!this.ui.elements.messageBox) {
+                console.warn("⚠️ messageBox non trouvé dans le DOM");
+            }
+            if (!this.ui.elements.startScreen) {
+                console.warn("⚠️ startScreen non trouvé dans le DOM");
+            }
         },
         
         initUIScreens: function() {
@@ -2329,6 +2348,7 @@
         
         initHUD: function() {
             // Mettre à jour le HUD périodiquement
+            var self = this;
             this.ui.updateFunctions.hud = function() {
                 if (!self.gameState.inGame) return;
                 
@@ -2481,7 +2501,7 @@
         },
         
         isMobile: function() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent);
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         },
         
         // ============================================
@@ -2490,6 +2510,7 @@
         initAudio: function() {
             console.log("🔊 Initialisation audio...");
             
+            var self = this;
             this.systems.audio = {
                 sounds: {},
                 music: null,
@@ -2499,7 +2520,7 @@
                 play: function(soundId) {
                     if (this.muted) return;
                     
-                    // Simulation de son (à remplacer par des vrais fichiers audio)
+                    // Simulation de son
                     console.log("🔊 Son joué:", soundId);
                     
                     // Vibration si mobile et activé
@@ -2563,6 +2584,7 @@
         },
         
         initQuestSystem: function() {
+            var self = this;
             this.systems.quest = {
                 activeQuests: [],
                 completedQuests: [],
@@ -2571,7 +2593,7 @@
                 
                 startQuest: function(npcId, questData) {
                     var quest = {
-                        id: this.utils.generateId(),
+                        id: self.utils.generateId(),
                         npcId: npcId,
                         title: questData.title,
                         description: questData.description,
@@ -2583,19 +2605,19 @@
                         progress: {}
                     };
                     
-                    this.systems.quest.activeQuests.push(quest);
-                    this.systems.quest.questLog.push({
+                    this.activeQuests.push(quest);
+                    this.questLog.push({
                         type: "started",
                         quest: quest,
                         timestamp: Date.now()
                     });
                     
-                    this.showNotification("📜 Nouvelle quête: " + quest.title, 3000);
+                    self.showNotification("📜 Nouvelle quête: " + quest.title, 3000);
                     return quest.id;
                 },
                 
                 updateObjective: function(questId, objectiveId, progress) {
-                    var quest = this.systems.quest.activeQuests.find(q => q.id === questId);
+                    var quest = this.activeQuests.find(q => q.id === questId);
                     if (!quest) return;
                     
                     quest.progress[objectiveId] = progress;
@@ -2610,80 +2632,81 @@
                     }
                     
                     if (allCompleted) {
-                        this.systems.quest.completeQuest(questId);
+                        this.completeQuest(questId);
                     }
                 },
                 
                 completeQuest: function(questId) {
-                    var questIndex = this.systems.quest.activeQuests.findIndex(q => q.id === questId);
+                    var questIndex = this.activeQuests.findIndex(q => q.id === questId);
                     if (questIndex === -1) return;
                     
-                    var quest = this.systems.quest.activeQuests[questIndex];
+                    var quest = this.activeQuests[questIndex];
                     quest.completed = true;
                     quest.completedAt = Date.now();
                     
                     // Donner les récompenses
                     if (quest.rewards) {
                         if (quest.rewards.xp) {
-                            this.addXP(quest.rewards.xp);
+                            self.addXP(quest.rewards.xp);
                         }
                         if (quest.rewards.money) {
-                            this.state.money += quest.rewards.money;
+                            self.state.money += quest.rewards.money;
                         }
                         if (quest.rewards.items) {
-                            quest.rewards.items.forEach(item => {
-                                this.addToInventory(item);
+                            quest.rewards.items.forEach(function(item) {
+                                self.addToInventory(item);
                             });
                         }
                     }
                     
                     // Déplacer vers les quêtes complétées
-                    this.systems.quest.activeQuests.splice(questIndex, 1);
-                    this.systems.quest.completedQuests.push(quest);
+                    this.activeQuests.splice(questIndex, 1);
+                    this.completedQuests.push(quest);
                     
-                    this.systems.quest.questLog.push({
+                    this.questLog.push({
                         type: "completed",
                         quest: quest,
                         timestamp: Date.now()
                     });
                     
-                    this.showNotification("✅ Quête complétée: " + quest.title, 3000);
-                    this.updateHUD();
+                    self.showNotification("✅ Quête complétée: " + quest.title, 3000);
+                    self.updateHUD();
                 },
                 
                 failQuest: function(questId, reason) {
-                    var questIndex = this.systems.quest.activeQuests.findIndex(q => q.id === questId);
+                    var questIndex = this.activeQuests.findIndex(q => q.id === questId);
                     if (questIndex === -1) return;
                     
-                    var quest = this.systems.quest.activeQuests[questIndex];
+                    var quest = this.activeQuests[questIndex];
                     quest.failed = true;
                     quest.failedReason = reason;
                     quest.failedAt = Date.now();
                     
-                    this.systems.quest.activeQuests.splice(questIndex, 1);
-                    this.systems.quest.failedQuests.push(quest);
+                    this.activeQuests.splice(questIndex, 1);
+                    this.failedQuests.push(quest);
                     
-                    this.systems.quest.questLog.push({
+                    this.questLog.push({
                         type: "failed",
                         quest: quest,
                         reason: reason,
                         timestamp: Date.now()
                     });
                     
-                    this.showNotification("❌ Quête échouée: " + quest.title, 3000);
+                    self.showNotification("❌ Quête échouée: " + quest.title, 3000);
                 },
                 
                 getActiveQuests: function() {
-                    return this.systems.quest.activeQuests;
+                    return this.activeQuests;
                 },
                 
                 getQuestLog: function() {
-                    return this.systems.quest.questLog;
+                    return this.questLog;
                 }
             };
         },
         
         initInventorySystem: function() {
+            var self = this;
             this.systems.inventory = {
                 items: [],
                 maxSlots: 30,
@@ -2694,140 +2717,140 @@
                     
                     // Vérifier le poids
                     var itemWeight = (itemData.weight || 1) * quantity;
-                    if (this.state.weight + itemWeight > this.state.maxWeight) {
-                        this.showMessage("Trop lourd! Poids maximum: " + this.state.maxWeight + "kg", 2000);
+                    if (self.state.weight + itemWeight > self.state.maxWeight) {
+                        self.showMessage("Trop lourd! Poids maximum: " + self.state.maxWeight + "kg", 2000);
                         return false;
                     }
                     
                     // Vérifier les emplacements
-                    if (this.systems.inventory.items.length >= this.systems.inventory.maxSlots) {
-                        this.showMessage("Inventaire plein!", 2000);
+                    if (this.items.length >= this.maxSlots) {
+                        self.showMessage("Inventaire plein!", 2000);
                         return false;
                     }
                     
                     // Ajouter l'objet
-                    var existingItem = this.systems.inventory.items.find(item => 
-                        item.id === itemData.id && item.stackable);
+                    var existingItem = this.items.find(function(item) { 
+                        return item.id === itemData.id && item.stackable;
+                    });
                     
                     if (existingItem && existingItem.stackable) {
                         existingItem.quantity += quantity;
                     } else {
                         var newItem = Object.assign({}, itemData, { quantity: quantity });
-                        this.systems.inventory.items.push(newItem);
+                        this.items.push(newItem);
                     }
                     
                     // Mettre à jour le poids
-                    this.state.weight += itemWeight;
+                    self.state.weight += itemWeight;
                     
                     // Notification
-                    this.showNotification("🎒 " + itemData.name + " x" + quantity + " ajouté", 2000);
-                    this.playSound('sfx-collect');
+                    self.showNotification("🎒 " + itemData.name + " x" + quantity + " ajouté", 2000);
+                    self.playSound('sfx-collect');
                     
                     // Mettre à jour l'affichage
-                    this.updateInventoryDisplay();
+                    self.updateInventoryDisplay();
                     return true;
                 },
                 
                 removeItem: function(itemId, quantity) {
                     quantity = quantity || 1;
                     
-                    var itemIndex = this.systems.inventory.items.findIndex(item => item.id === itemId);
+                    var itemIndex = this.items.findIndex(function(item) { return item.id === itemId; });
                     if (itemIndex === -1) return null;
                     
-                    var item = this.systems.inventory.items[itemIndex];
+                    var item = this.items[itemIndex];
                     
                     if (item.quantity <= quantity) {
                         // Supprimer complètement l'objet
-                        this.systems.inventory.items.splice(itemIndex, 1);
-                        this.state.weight -= (item.weight || 1) * item.quantity;
+                        this.items.splice(itemIndex, 1);
+                        self.state.weight -= (item.weight || 1) * item.quantity;
                     } else {
                         // Réduire la quantité
                         item.quantity -= quantity;
-                        this.state.weight -= (item.weight || 1) * quantity;
+                        self.state.weight -= (item.weight || 1) * quantity;
                     }
                     
-                    this.updateInventoryDisplay();
+                    self.updateInventoryDisplay();
                     return item;
                 },
                 
                 useItem: function(itemId) {
-                    var item = this.systems.inventory.items.find(item => item.id === itemId);
+                    var item = this.items.find(function(item) { return item.id === itemId; });
                     if (!item) return;
                     
                     switch (item.type) {
                         case "health":
                             var healAmount = Math.min(
-                                this.state.maxHealth - this.state.health,
+                                self.state.maxHealth - self.state.health,
                                 item.value || 25
                             );
-                            this.state.health += healAmount;
-                            this.showMessage("❤️ Santé restaurée de " + healAmount, 1500);
-                            this.systems.inventory.removeItem(itemId, 1);
+                            self.state.health += healAmount;
+                            self.showMessage("❤️ Santé restaurée de " + healAmount, 1500);
+                            this.removeItem(itemId, 1);
                             break;
                             
                         case "ammo":
-                            var weapon = this.weapons[this.state.currentWeapon];
+                            var weapon = self.weapons[self.state.currentWeapon];
                             var ammoToAdd = Math.min(
                                 weapon.maxAmmo - weapon.ammo,
                                 item.value || 30
                             );
                             weapon.ammo += ammoToAdd;
-                            this.showMessage("📦 Munitions +" + ammoToAdd, 1500);
-                            this.systems.inventory.removeItem(itemId, 1);
+                            self.showMessage("📦 Munitions +" + ammoToAdd, 1500);
+                            this.removeItem(itemId, 1);
                             break;
                             
                         case "food":
                             var hungerToAdd = Math.min(
-                                this.state.maxHunger - this.state.hunger,
+                                self.state.maxHunger - self.state.hunger,
                                 item.value || 20
                             );
-                            this.state.hunger += hungerToAdd;
-                            this.showMessage("🍲 Faim restaurée de " + hungerToAdd, 1500);
-                            this.systems.inventory.removeItem(itemId, 1);
+                            self.state.hunger += hungerToAdd;
+                            self.showMessage("🍲 Faim restaurée de " + hungerToAdd, 1500);
+                            this.removeItem(itemId, 1);
                             break;
                             
                         case "drink":
                             var thirstToAdd = Math.min(
-                                this.state.maxThirst - this.state.thirst,
+                                self.state.maxThirst - self.state.thirst,
                                 item.value || 30
                             );
-                            this.state.thirst += thirstToAdd;
-                            this.showMessage("💧 Soif restaurée de " + thirstToAdd, 1500);
-                            this.systems.inventory.removeItem(itemId, 1);
+                            self.state.thirst += thirstToAdd;
+                            self.showMessage("💧 Soif restaurée de " + thirstToAdd, 1500);
+                            this.removeItem(itemId, 1);
                             break;
                             
                         case "medical":
-                            // Soigner les maladies
-                            this.showMessage("💊 Médicament utilisé", 1500);
-                            this.systems.inventory.removeItem(itemId, 1);
+                            self.showMessage("💊 Médicament utilisé", 1500);
+                            this.removeItem(itemId, 1);
                             break;
                     }
                     
-                    this.updateHUD();
+                    self.updateHUD();
                 },
                 
                 equipItem: function(itemId) {
-                    var item = this.systems.inventory.items.find(item => item.id === itemId);
+                    var item = this.items.find(function(item) { return item.id === itemId; });
                     if (!item) return;
                     
                     // Logique d'équipement selon le type
                     if (item.equipmentSlot) {
                         // Déséquiper l'ancien item s'il y en a un
-                        if (this.state.equipment[item.equipmentSlot]) {
-                            this.systems.inventory.addItem(this.state.equipment[item.equipmentSlot], 1);
+                        if (self.state.equipment[item.equipmentSlot]) {
+                            this.addItem(self.state.equipment[item.equipmentSlot], 1);
                         }
                         
                         // Équiper le nouveau
-                        this.state.equipment[item.equipmentSlot] = item;
-                        this.systems.inventory.removeItem(itemId, 1);
+                        self.state.equipment[item.equipmentSlot] = item;
+                        this.removeItem(itemId, 1);
                         
-                        this.showMessage(item.name + " équipé", 1500);
-                        this.updateInventoryDisplay();
+                        self.showMessage(item.name + " équipé", 1500);
+                        self.updateInventoryDisplay();
                     }
                 },
                 
                 sortItems: function() {
-                    this.systems.inventory.items.sort(function(a, b) {
+                    this.items.sort(function(a, b) {
                         // Par type, puis par rareté, puis par nom
                         if (a.type !== b.type) return a.type.localeCompare(b.type);
                         if (a.rarity !== b.rarity) {
@@ -2837,13 +2860,14 @@
                         return a.name.localeCompare(b.name);
                     });
                     
-                    this.showMessage("Inventaire trié", 1500);
-                    this.updateInventoryDisplay();
+                    self.showMessage("Inventaire trié", 1500);
+                    self.updateInventoryDisplay();
                 }
             };
         },
         
         initCombatSystem: function() {
+            var self = this;
             this.systems.combat = {
                 bullets: [],
                 lastShot: 0,
@@ -2857,103 +2881,58 @@
                 
                 shoot: function() {
                     var now = Date.now();
-                    var weapon = this.weapons[this.state.currentWeapon];
+                    var weapon = self.weapons[self.state.currentWeapon];
                     
                     // Vérifications
-                    if (this.systems.combat.isReloading) return;
-                    if (now - this.systems.combat.lastShot < weapon.fireRate) return;
+                    if (this.isReloading) return;
+                    if (now - this.lastShot < weapon.fireRate) return;
                     if (weapon.ammo <= 0) {
-                        this.showMessage("Plus de munitions! Appuyez sur R pour recharger", 1500);
+                        self.showMessage("Plus de munitions! Appuyez sur R pour recharger", 1500);
                         return;
                     }
                     
                     // Consommer munition
                     weapon.ammo--;
-                    this.systems.combat.lastShot = now;
+                    this.lastShot = now;
                     
                     // Créer une balle
-                    this.createBullet();
+                    self.createBullet();
                     
                     // Son
-                    this.playSound(weapon.sound);
+                    self.playSound(weapon.sound);
                     
                     // Recul
                     this.applyRecoil();
                     
                     // Mettre à jour le HUD
-                    this.updateHUD();
+                    self.updateHUD();
                     
                     // Statistiques
-                    this.stats.shotsFired++;
-                },
-                
-                createBullet: function() {
-                    var weapon = this.weapons[this.state.currentWeapon];
-                    
-                    // Géométrie de balle
-                    var geometry = new THREE.SphereGeometry(0.05, 8, 8);
-                    var material = new THREE.MeshBasicMaterial({
-                        color: 0xFCD116,
-                        emissive: 0xFCD116,
-                        emissiveIntensity: 0.5
-                    });
-                    
-                    var bullet = new THREE.Mesh(geometry, material);
-                    
-                    // Position de départ
-                    if (this.world.player) {
-                        bullet.position.copy(this.world.player.position);
-                        bullet.position.y += 1.7;
-                    }
-                    
-                    // Direction
-                    var direction = new THREE.Vector3(0, 0, -1);
-                    if (this.three.camera) {
-                        direction.applyQuaternion(this.three.camera.quaternion);
-                    }
-                    
-                    // Imprécision
-                    var accuracy = weapon.accuracy || 0.9;
-                    var spread = (1 - accuracy) * 0.1;
-                    direction.x += (Math.random() - 0.5) * spread;
-                    direction.y += (Math.random() - 0.5) * spread;
-                    direction.normalize();
-                    
-                    bullet.userData = {
-                        direction: direction,
-                        speed: this.systems.combat.bulletSpeed,
-                        damage: weapon.damage,
-                        spawnTime: Date.now(),
-                        owner: "player",
-                        weaponType: weapon.type
-                    };
-                    
-                    this.three.scene.add(bullet);
-                    this.world.projectiles.push(bullet);
+                    self.stats.shotsFired++;
                 },
                 
                 applyRecoil: function() {
-                    var weapon = this.weapons[this.state.currentWeapon];
+                    var weapon = self.weapons[self.state.currentWeapon];
                     var recoil = weapon.type === "shotgun" ? 0.2 : 0.05;
                     
-                    this.systems.combat.currentRecoil += recoil;
-                    this.systems.combat.currentRecoil = Math.min(
-                        this.systems.combat.currentRecoil, 
-                        this.systems.combat.maxRecoil
+                    this.currentRecoil += recoil;
+                    this.currentRecoil = Math.min(
+                        this.currentRecoil, 
+                        this.maxRecoil
                     );
                 },
                 
                 updateBullets: function() {
                     var now = Date.now();
                     
-                    for (var i = this.world.projectiles.length - 1; i >= 0; i--) {
-                        var bullet = this.world.projectiles[i];
+                    for (var i = self.world.projectiles.length - 1; i >= 0; i--) {
+                        var bullet = self.world.projectiles[i];
                         if (!bullet) continue;
                         
                         // Vérifier la durée de vie
-                        if (now - bullet.userData.spawnTime > this.systems.combat.bulletLifetime) {
-                            this.three.scene.remove(bullet);
-                            this.world.projectiles.splice(i, 1);
+                        if (now - bullet.userData.spawnTime > this.bulletLifetime) {
+                            self.three.scene.remove(bullet);
+                            self.world.projectiles.splice(i, 1);
                             continue;
                         }
                         
@@ -2964,119 +2943,70 @@
                         );
                         
                         // Vérifier les collisions
-                        if (this.checkBulletCollision(bullet, i)) {
-                            this.three.scene.remove(bullet);
-                            this.world.projectiles.splice(i, 1);
+                        if (self.checkBulletCollision(bullet, i)) {
+                            self.three.scene.remove(bullet);
+                            self.world.projectiles.splice(i, 1);
                         }
                     }
                     
                     // Réduire le recul
-                    if (this.systems.combat.currentRecoil > 0) {
-                        this.systems.combat.currentRecoil *= 0.9;
-                        if (this.systems.combat.currentRecoil < 0.01) {
-                            this.systems.combat.currentRecoil = 0;
+                    if (this.currentRecoil > 0) {
+                        this.currentRecoil *= 0.9;
+                        if (this.currentRecoil < 0.01) {
+                            this.currentRecoil = 0;
                         }
-                    }
-                },
-                
-                checkBulletCollision: function(bullet, index) {
-                    // Ennemis
-                    for (var i = 0; i < this.world.enemies.length; i++) {
-                        var enemy = this.world.enemies[i];
-                        if (!enemy.userData || enemy.userData.dead) continue;
-                        
-                        var distance = bullet.position.distanceTo(enemy.position);
-                        if (distance < 1) {
-                            this.damageEnemy(enemy, bullet.userData.damage, bullet);
-                            return true;
-                        }
-                    }
-                    
-                    // Limite de distance
-                    if (this.world.player && 
-                        bullet.position.distanceTo(this.world.player.position) > 300) {
-                        return true;
-                    }
-                    
-                    return false;
-                },
-                
-                damageEnemy: function(enemy, damage, bullet) {
-                    if (!enemy.userData) return;
-                    
-                    enemy.userData.health -= damage;
-                    
-                    // Effet de dégâts
-                    this.createHitEffect(enemy.position, damage);
-                    
-                    // Son
-                    this.playSound('sfx-hit');
-                    
-                    // Indicateur de dégâts
-                    this.createDamageIndicator(enemy.position, damage);
-                    
-                    // Effet visuel
-                    enemy.material.color.setHex(0xff0000);
-                    setTimeout(function() {
-                        if (enemy.userData.health > 0) {
-                            enemy.material.color.setHex(enemy.userData.originalColor);
-                        }
-                    }, 100);
-                    
-                    // Vérifier la mort
-                    if (enemy.userData.health <= 0) {
-                        this.enemyDie(enemy, bullet);
                     }
                 },
                 
                 reloadWeapon: function() {
-                    if (this.systems.combat.isReloading) return;
+                    if (this.isReloading) return;
                     
-                    var weapon = this.weapons[this.state.currentWeapon];
+                    var weapon = self.weapons[self.state.currentWeapon];
                     if (weapon.ammo === weapon.maxAmmo) return;
                     
-                    this.systems.combat.isReloading = true;
-                    this.showMessage("Rechargement...", 1500);
+                    this.isReloading = true;
+                    self.showMessage("Rechargement...", 1500);
                     
                     // Animation de rechargement
                     setTimeout(function() {
                         weapon.ammo = weapon.maxAmmo;
-                        this.systems.combat.isReloading = false;
-                        this.showMessage("Arme rechargée", 1000);
-                        this.updateHUD();
-                        this.playSound('sfx-collect');
-                    }.bind(this), this.systems.combat.reloadTime);
+                        this.isReloading = false;
+                        self.showMessage("Arme rechargée", 1000);
+                        self.updateHUD();
+                        self.playSound('sfx-collect');
+                    }.bind(this), this.reloadTime);
                 }
             };
         },
         
         initSaveSystem: function() {
+            var self = this;
             this.systems.save = {
                 saveKey: "gabon_rpg_3d_save",
                 
                 save: function() {
                     try {
                         var saveData = {
-                            version: this.VERSION,
+                            version: self.VERSION,
                             timestamp: Date.now(),
-                            gameState: this.state,
-                            stats: this.stats,
-                            position: this.world.player ? this.world.player.position : { x: 0, y: 0, z: 0 },
-                            rotation: this.world.player ? this.world.player.rotation : { x: 0, y: 0, z: 0 },
-                            inventory: this.systems.inventory.items,
-                            equipment: this.state.equipment,
+                            gameState: self.state,
+                            stats: self.stats,
+                            position: self.world.player ? self.world.player.position : { x: 0, y: 0, z: 0 },
+                            rotation: self.world.player ? self.world.player.rotation : { x: 0, y: 0, z: 0 },
+                            inventory: self.systems.inventory.items,
+                            equipment: self.state.equipment,
                             quests: {
-                                active: this.systems.quest.activeQuests,
-                                completed: this.systems.quest.completedQuests
+                                active: self.systems.quest.activeQuests,
+                                completed: self.systems.quest.completedQuests
                             },
                             location: {
-                                city: this.state.currentCity,
-                                district: this.state.currentDistrict
+                                city: self.state.currentCity,
+                                district: self.state.currentDistrict
                             },
-                            config: this.config
+                            config: self.config
                         };
                         
-                        localStorage.setItem(this.systems.save.saveKey, JSON.stringify(saveData));
+                        localStorage.setItem(this.saveKey, JSON.stringify(saveData));
                         return true;
                     } catch (e) {
                         console.error("Erreur de sauvegarde:", e);
@@ -3086,34 +3016,34 @@
                 
                 load: function() {
                     try {
-                        var data = localStorage.getItem(this.systems.save.saveKey);
+                        var data = localStorage.getItem(this.saveKey);
                         if (!data) return false;
                         
                         var saveData = JSON.parse(data);
                         
                         // Charger l'état du jeu
-                        Object.assign(this.state, saveData.gameState);
+                        Object.assign(self.state, saveData.gameState);
                         
                         // Charger les statistiques
-                        Object.assign(this.stats, saveData.stats);
+                        Object.assign(self.stats, saveData.stats);
                         
                         // Charger l'inventaire
-                        this.systems.inventory.items = saveData.inventory || [];
+                        self.systems.inventory.items = saveData.inventory || [];
                         
                         // Charger l'équipement
-                        Object.assign(this.state.equipment, saveData.equipment || {});
+                        Object.assign(self.state.equipment, saveData.equipment || {});
                         
                         // Charger les quêtes
-                        this.systems.quest.activeQuests = saveData.quests?.active || [];
-                        this.systems.quest.completedQuests = saveData.quests?.completed || [];
+                        self.systems.quest.activeQuests = saveData.quests?.active || [];
+                        self.systems.quest.completedQuests = saveData.quests?.completed || [];
                         
                         // Charger la localisation
-                        this.state.currentCity = saveData.location?.city || 0;
-                        this.state.currentDistrict = saveData.location?.district || 0;
+                        self.state.currentCity = saveData.location?.city || 0;
+                        self.state.currentDistrict = saveData.location?.district || 0;
                         
                         // Charger la configuration
                         if (saveData.config) {
-                            Object.assign(this.config, saveData.config);
+                            Object.assign(self.config, saveData.config);
                         }
                         
                         return true;
@@ -3125,7 +3055,7 @@
                 
                 delete: function() {
                     try {
-                        localStorage.removeItem(this.systems.save.saveKey);
+                        localStorage.removeItem(this.saveKey);
                         return true;
                     } catch (e) {
                         console.error("Erreur de suppression:", e);
@@ -3136,6 +3066,7 @@
         },
         
         initTimeSystem: function() {
+            var self = this;
             this.systems.time = {
                 timeScale: 60, // 1 seconde réelle = 1 minute jeu
                 currentTime: 8.0, // 8:00 AM
@@ -3144,67 +3075,30 @@
                 
                 update: function(deltaTime) {
                     // Avancer le temps
-                    this.systems.time.currentTime += deltaTime * this.systems.time.timeScale / 3600;
+                    this.currentTime += deltaTime * this.timeScale / 3600;
                     
                     // Boucler à 24h
-                    if (this.systems.time.currentTime >= this.systems.time.dayLength) {
-                        this.systems.time.currentTime -= this.systems.time.dayLength;
-                        this.state.day++;
+                    if (this.currentTime >= this.dayLength) {
+                        this.currentTime -= this.dayLength;
+                        self.state.day++;
                         
                         // Événements quotidiens
-                        this.dailyEvents();
+                        self.dailyEvents();
                     }
                     
                     // Déterminer si c'est le jour ou la nuit
-                    this.systems.time.isDay = (
-                        this.systems.time.currentTime >= 6 && 
-                        this.systems.time.currentTime < 18
+                    this.isDay = (
+                        this.currentTime >= 6 && 
+                        this.currentTime < 18
                     );
                     
                     // Ajuster l'éclairage
-                    this.updateLighting();
-                },
-                
-                updateLighting: function() {
-                    if (!this.world.sun) return;
-                    
-                    var hour = this.systems.time.currentTime;
-                    var intensity;
-                    
-                    if (hour >= 6 && hour <= 18) {
-                        // Jour
-                        var noon = 12;
-                        var distanceFromNoon = Math.abs(hour - noon);
-                        intensity = 1.0 - (distanceFromNoon / 6) * 0.5;
-                    } else {
-                        // Nuit
-                        intensity = 0.3;
-                    }
-                    
-                    this.world.sun.intensity = intensity * 1.2;
-                    
-                    // Position du soleil
-                    var sunAngle = (hour / 24) * Math.PI * 2;
-                    this.world.sun.position.x = Math.cos(sunAngle) * 200;
-                    this.world.sun.position.y = Math.sin(sunAngle) * 100 + 50;
-                    this.world.sun.position.z = Math.sin(sunAngle) * 200;
-                    
-                    // Couleur du ciel
-                    if (this.world.skybox && this.world.skybox.material) {
-                        var skyColor;
-                        if (this.systems.time.isDay) {
-                            skyColor = this.assets.colors.sky;
-                        } else {
-                            var nightFactor = (hour < 6 ? hour / 6 : (24 - hour) / 6);
-                            skyColor = this.utils.lerpColor(0x000033, this.assets.colors.sky, nightFactor);
-                        }
-                        this.world.skybox.material.color.setHex(skyColor);
-                    }
+                    self.updateLighting();
                 },
                 
                 getTimeString: function() {
-                    var hour = Math.floor(this.systems.time.currentTime);
-                    var minute = Math.floor((this.systems.time.currentTime - hour) * 60);
+                    var hour = Math.floor(this.currentTime);
+                    var minute = Math.floor((this.currentTime - hour) * 60);
                     var period = hour >= 12 ? "PM" : "AM";
                     
                     hour = hour % 12;
@@ -3216,60 +3110,15 @@
                 
                 dailyEvents: function() {
                     // Événements qui se produisent chaque jour
-                    this.showMessage("Nouveau jour! Jour " + this.state.day, 3000);
+                    self.showMessage("Nouveau jour! Jour " + self.state.day, 3000);
                     
                     // Réinitialiser certaines statistiques
-                    this.state.hunger = Math.max(0, this.state.hunger - 30);
-                    this.state.thirst = Math.max(0, this.state.thirst - 40);
+                    self.state.hunger = Math.max(0, self.state.hunger - 30);
+                    self.state.thirst = Math.max(0, self.state.thirst - 40);
                     
                     // Chance d'événements aléatoires
                     if (Math.random() < 0.3) {
-                        this.randomDailyEvent();
-                    }
-                },
-                
-                randomDailyEvent: function() {
-                    var events = [
-                        {
-                            type: "weather",
-                            message: "Il pleut aujourd'hui. La visibilité est réduite.",
-                            effect: function() {
-                                // Réduire la visibilité
-                                this.three.scene.fog.near = 20;
-                                this.three.scene.fog.far = 300;
-                            }
-                        },
-                        {
-                            type: "market",
-                            message: "C'est jour de marché! Les prix sont réduits.",
-                            effect: function() {
-                                // Réduire les prix
-                                // (À implémenter avec le système d'économie)
-                            }
-                        },
-                        {
-                            type: "bandits",
-                            message: "Des bandits rôdent dans la région. Soyez prudent!",
-                            effect: function() {
-                                // Augmenter le nombre d'ennemis
-                                this.spawnAdditionalEnemies(5);
-                            }
-                        },
-                        {
-                            type: "festival",
-                            message: "C'est un jour de fête! La ville est animée.",
-                            effect: function() {
-                                // Augmenter le nombre de PNJ
-                                this.spawnAdditionalNPCs(3);
-                            }
-                        }
-                    ];
-                    
-                    var event = events[Math.floor(Math.random() * events.length)];
-                    this.showMessage(event.message, 4000);
-                    
-                    if (event.effect) {
-                        event.effect.call(this);
+                        self.randomDailyEvent();
                     }
                 }
             };
@@ -3385,7 +3234,9 @@
                     charisma: 1,
                     crafting: 1,
                     survival: 1
-                }
+                },
+                currentCity: 0,
+                currentDistrict: 0
             };
             
             // Réinitialiser les statistiques
@@ -3424,10 +3275,10 @@
         
         clearWorld: function() {
             // Supprimer tous les objets du monde
-            this.world.enemies.forEach(enemy => this.three.scene.remove(enemy));
-            this.world.npcs.forEach(npc => this.three.scene.remove(npc));
-            this.world.items.forEach(item => this.three.scene.remove(item));
-            this.world.projectiles.forEach(projectile => this.three.scene.remove(projectile));
+            this.world.enemies.forEach(function(enemy) { this.three.scene.remove(enemy); }.bind(this));
+            this.world.npcs.forEach(function(npc) { this.three.scene.remove(npc); }.bind(this));
+            this.world.items.forEach(function(item) { this.three.scene.remove(item); }.bind(this));
+            this.world.projectiles.forEach(function(projectile) { this.three.scene.remove(projectile); }.bind(this));
             
             this.world.enemies = [];
             this.world.npcs = [];
@@ -3866,7 +3717,7 @@
             
             // Mettre à jour la quête
             if (this.systems.quest) {
-                this.systems.quest.activeQuests.forEach(quest => {
+                this.systems.quest.activeQuests.forEach(function(quest) {
                     if (quest.objectives && quest.objectives.kill_bandits) {
                         this.systems.quest.updateObjective(
                             quest.id,
@@ -3874,7 +3725,7 @@
                             (quest.progress.kill_bandits || 0) + 1
                         );
                     }
-                });
+                }.bind(this));
             }
             
             // Ajouter XP
@@ -3882,9 +3733,9 @@
             
             // Drop d'objets
             if (enemy.userData.drops) {
-                enemy.userData.drops.forEach(dropType => {
+                enemy.userData.drops.forEach(function(dropType) {
                     this.createPickup(enemy.position, dropType);
-                });
+                }.bind(this));
             }
             
             // Effet de mort
@@ -4193,7 +4044,7 @@
         },
         
         createPickup: function(position, type) {
-            var itemData = this.items.find(item => item.type === type);
+            var itemData = this.items.find(function(item) { return item.type === type; });
             if (!itemData) return;
             
             var pickup = this.assets.models.item.clone();
@@ -4507,7 +4358,7 @@
             container.innerHTML = '';
             
             // Afficher chaque objet
-            this.systems.inventory.items.forEach((item, index) => {
+            this.systems.inventory.items.forEach(function(item, index) {
                 var itemDiv = document.createElement('div');
                 itemDiv.className = 'inventory-item';
                 itemDiv.dataset.index = index;
@@ -4533,7 +4384,7 @@
                 `;
                 
                 container.appendChild(itemDiv);
-            });
+            }.bind(this));
             
             // Mettre à jour les statistiques
             this.ui.elements.invLevel.textContent = this.state.level;
@@ -4550,6 +4401,13 @@
         },
         
         showMessage: function(text, duration) {
+            // Vérifier si messageBox existe
+            if (!this.ui || !this.ui.elements || !this.ui.elements.messageBox) {
+                console.warn("messageBox non disponible, affichage dans la console :", text);
+                console.log("Message du jeu :", text);
+                return;
+            }
+            
             var messageBox = this.ui.elements.messageBox;
             var messageText = document.getElementById('message-text');
             
@@ -4564,7 +4422,9 @@
             
             if (duration > 0) {
                 setTimeout(function() {
-                    messageBox.style.display = 'none';
+                    if (messageBox.style.display === 'block') {
+                        messageBox.style.display = 'none';
+                    }
                 }, duration);
             }
         },
@@ -4945,21 +4805,221 @@
             if (item) {
                 this.createPickup(this.world.player.position, item.type);
             }
+        },
+        
+        // ============================================
+        // FONCTIONS DE COMBAT (MANQUANTES)
+        // ============================================
+        createBullet: function() {
+            var weapon = this.weapons[this.state.currentWeapon];
+            
+            // Géométrie de balle
+            var geometry = new THREE.SphereGeometry(0.05, 8, 8);
+            var material = new THREE.MeshBasicMaterial({
+                color: 0xFCD116,
+                emissive: 0xFCD116,
+                emissiveIntensity: 0.5
+            });
+            
+            var bullet = new THREE.Mesh(geometry, material);
+            
+            // Position de départ
+            if (this.world.player) {
+                bullet.position.copy(this.world.player.position);
+                bullet.position.y += 1.7;
+            }
+            
+            // Direction
+            var direction = new THREE.Vector3(0, 0, -1);
+            if (this.three.camera) {
+                direction.applyQuaternion(this.three.camera.quaternion);
+            }
+            
+            // Imprécision
+            var accuracy = weapon.accuracy || 0.9;
+            var spread = (1 - accuracy) * 0.1;
+            direction.x += (Math.random() - 0.5) * spread;
+            direction.y += (Math.random() - 0.5) * spread;
+            direction.normalize();
+            
+            bullet.userData = {
+                direction: direction,
+                speed: this.systems.combat.bulletSpeed,
+                damage: weapon.damage,
+                spawnTime: Date.now(),
+                owner: "player",
+                weaponType: weapon.type
+            };
+            
+            this.three.scene.add(bullet);
+            this.world.projectiles.push(bullet);
+        },
+        
+        checkBulletCollision: function(bullet, index) {
+            // Ennemis
+            for (var i = 0; i < this.world.enemies.length; i++) {
+                var enemy = this.world.enemies[i];
+                if (!enemy.userData || enemy.userData.dead) continue;
+                
+                var distance = bullet.position.distanceTo(enemy.position);
+                if (distance < 1) {
+                    this.damageEnemy(enemy, bullet.userData.damage, bullet);
+                    return true;
+                }
+            }
+            
+            // Limite de distance
+            if (this.world.player && 
+                bullet.position.distanceTo(this.world.player.position) > 300) {
+                return true;
+            }
+            
+            return false;
+        },
+        
+        damageEnemy: function(enemy, damage, bullet) {
+            if (!enemy.userData) return;
+            
+            enemy.userData.health -= damage;
+            
+            // Effet de dégâts
+            this.createHitEffect(enemy.position, damage);
+            
+            // Son
+            this.playSound('sfx-hit');
+            
+            // Indicateur de dégâts
+            this.createDamageIndicator(enemy.position, damage);
+            
+            // Effet visuel
+            enemy.material.color.setHex(0xff0000);
+            setTimeout(function() {
+                if (enemy.userData.health > 0) {
+                    enemy.material.color.setHex(enemy.userData.originalColor);
+                }
+            }, 100);
+            
+            // Vérifier la mort
+            if (enemy.userData.health <= 0) {
+                this.enemyDie(enemy, bullet);
+            }
+        },
+        
+        updateLighting: function() {
+            if (!this.world.sun) return;
+            
+            var hour = this.systems.time.currentTime;
+            var intensity;
+            
+            if (hour >= 6 && hour <= 18) {
+                // Jour
+                var noon = 12;
+                var distanceFromNoon = Math.abs(hour - noon);
+                intensity = 1.0 - (distanceFromNoon / 6) * 0.5;
+            } else {
+                // Nuit
+                intensity = 0.3;
+            }
+            
+            this.world.sun.intensity = intensity * 1.2;
+            
+            // Position du soleil
+            var sunAngle = (hour / 24) * Math.PI * 2;
+            this.world.sun.position.x = Math.cos(sunAngle) * 200;
+            this.world.sun.position.y = Math.sin(sunAngle) * 100 + 50;
+            this.world.sun.position.z = Math.sin(sunAngle) * 200;
+            
+            // Couleur du ciel
+            if (this.world.skybox && this.world.skybox.material) {
+                var skyColor;
+                if (this.systems.time.isDay) {
+                    skyColor = this.assets.colors.sky;
+                } else {
+                    var nightFactor = (hour < 6 ? hour / 6 : (24 - hour) / 6);
+                    skyColor = this.utils.lerpColor(0x000033, this.assets.colors.sky, nightFactor);
+                }
+                this.world.skybox.material.color.setHex(skyColor);
+            }
+        },
+        
+        randomDailyEvent: function() {
+            var events = [
+                {
+                    type: "weather",
+                    message: "Il pleut aujourd'hui. La visibilité est réduite.",
+                    effect: function() {
+                        // Réduire la visibilité
+                        this.three.scene.fog.near = 20;
+                        this.three.scene.fog.far = 300;
+                    }
+                },
+                {
+                    type: "market",
+                    message: "C'est jour de marché! Les prix sont réduits.",
+                    effect: function() {
+                        // Réduire les prix
+                        // (À implémenter avec le système d'économie)
+                    }
+                },
+                {
+                    type: "bandits",
+                    message: "Des bandits rôdent dans la région. Soyez prudent!",
+                    effect: function() {
+                        // Augmenter le nombre d'ennemis
+                        this.spawnAdditionalEnemies(5);
+                    }
+                },
+                {
+                    type: "festival",
+                    message: "C'est un jour de fête! La ville est animée.",
+                    effect: function() {
+                        // Augmenter le nombre de PNJ
+                        this.spawnAdditionalNPCs(3);
+                    }
+                }
+            ];
+            
+            var event = events[Math.floor(Math.random() * events.length)];
+            this.showMessage(event.message, 4000);
+            
+            if (event.effect) {
+                event.effect.call(this);
+            }
         }
     };
     
     // Initialiser au chargement
-    window.addEventListener('load', function() {
+    window.addEventListener('DOMContentLoaded', function() {
         console.log("🚀 Chargement du RPG Gabonais 3D...");
         
-        // Attendre que le DOM soit prêt
+        // Attendre un peu pour s'assurer que tout est prêt
         setTimeout(function() {
             try {
                 Game.init();
                 console.log("🎮 RPG Gabonais 3D prêt! 🇬🇦");
             } catch (error) {
                 console.error("Erreur d'initialisation:", error);
-                alert("Erreur d'initialisation du jeu: " + error.message);
+                // Afficher un message d'erreur simple
+                var errorDiv = document.createElement('div');
+                errorDiv.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: #8B0000;
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    z-index: 10000;
+                    text-align: center;
+                    max-width: 80%;
+                `;
+                errorDiv.innerHTML = `
+                    <h2>❌ Erreur d'initialisation du jeu</h2>
+                    <p>${error.message}</p>
+                    <p>Veuillez recharger la page ou vérifier la console pour plus de détails.</p>
+                `;
+                document.body.appendChild(errorDiv);
             }
         }, 100);
     });

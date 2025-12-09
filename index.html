@@ -7,11 +7,15 @@
     
     <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    
+    <!-- Howler.js pour audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
     
     <!-- Stats.js pour FPS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r17/Stats.min.js"></script>
     
-    <!-- Font Awesome pour icônes -->
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -24,6 +28,38 @@
             overflow: hidden;
             height: 100vh;
             cursor: none;
+            user-select: none;
+        }
+        
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a3d1f;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .loader {
+            width: 200px;
+            height: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            margin: 30px 0;
+            overflow: hidden;
+        }
+        
+        .loader-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #009e60, #fcd116);
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 10px;
         }
         
         #game-container {
@@ -49,9 +85,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(rgba(10, 61, 31, 0.95), rgba(8, 61, 26, 0.95)), 
+            background: radial-gradient(circle at center, rgba(10, 61, 31, 0.95), rgba(8, 61, 26, 0.98)),
                         url('data:image/svg+xml,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="%23009e60"/><path d="M20,20 L80,20 L80,80 L20,80 Z" fill="none" stroke="%23fcd116" stroke-width="2"/><circle cx="50" cy="50" r="15" fill="%23fcd116"/></svg>');
-            background-size: 200px;
+            background-size: 300px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -59,15 +95,27 @@
             z-index: 1000;
             text-align: center;
             padding: 20px;
+            animation: backgroundShift 20s infinite alternate;
+        }
+        
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 100px 100px; }
         }
         
         .game-title {
             font-size: 5rem;
             color: #fcd116;
-            text-shadow: 0 0 20px rgba(252, 209, 22, 0.7);
+            text-shadow: 0 0 30px rgba(252, 209, 22, 0.8), 0 0 60px rgba(252, 209, 22, 0.4);
             margin-bottom: 20px;
             font-weight: 900;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
+            animation: titlePulse 3s infinite alternate;
+        }
+        
+        @keyframes titlePulse {
+            0% { transform: scale(1); text-shadow: 0 0 20px rgba(252, 209, 22, 0.7); }
+            100% { transform: scale(1.05); text-shadow: 0 0 40px rgba(252, 209, 22, 0.9); }
         }
         
         .game-subtitle {
@@ -76,13 +124,14 @@
             margin-bottom: 40px;
             max-width: 800px;
             line-height: 1.5;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
         
         .start-btn {
             background: linear-gradient(45deg, #009e60, #00cc88);
             color: white;
             border: none;
-            padding: 18px 50px;
+            padding: 20px 60px;
             font-size: 1.5rem;
             border-radius: 50px;
             cursor: pointer;
@@ -91,25 +140,42 @@
             border: 3px solid #fcd116;
             font-weight: bold;
             letter-spacing: 1px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .start-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s;
         }
         
         .start-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-            background: linear-gradient(45deg, #00cc88, #009e60);
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(45deg, #00cc88, #00ee99);
+        }
+        
+        .start-btn:hover::before {
+            left: 100%;
         }
         
         .start-btn:active {
-            transform: scale(0.98);
+            transform: translateY(-2px) scale(0.98);
         }
         
         .btn-group {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 20px;
-            margin-top: 20px;
+            gap: 25px;
+            margin-top: 40px;
         }
         
         /* HUD */
@@ -131,126 +197,174 @@
         }
         
         .hud-section {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px 20px;
-            border-radius: 15px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(20, 20, 20, 0.9));
+            padding: 20px 25px;
+            border-radius: 20px;
             border: 2px solid #fcd116;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            min-width: 250px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+            min-width: 280px;
+            transform: translateY(0);
+            transition: transform 0.3s;
+        }
+        
+        .hud-section:hover {
+            transform: translateY(-5px);
         }
         
         .hud-left {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
         }
         
         .hud-right {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
             align-items: flex-end;
         }
         
         .stat-bar {
-            height: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+            height: 25px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
             overflow: hidden;
-            margin: 5px 0;
+            margin: 8px 0;
             position: relative;
+            border: 1px solid rgba(255,255,255,0.1);
         }
         
         .stat-fill {
             height: 100%;
-            border-radius: 10px;
-            transition: width 0.3s ease;
+            border-radius: 12px;
+            transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shine 2s infinite;
+        }
+        
+        @keyframes shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
         
         .health-fill { 
-            background: linear-gradient(90deg, #ff4444, #ff8888);
-            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+            background: linear-gradient(90deg, #ff3333, #ff6666);
+            box-shadow: 0 0 15px rgba(255, 51, 51, 0.6);
         }
         
         .xp-fill { 
-            background: linear-gradient(90deg, #009e60, #00cc88);
-            box-shadow: 0 0 10px rgba(0, 158, 96, 0.5);
+            background: linear-gradient(90deg, #009e60, #00ffaa);
+            box-shadow: 0 0 15px rgba(0, 158, 96, 0.6);
         }
         
         .ammo-fill { 
-            background: linear-gradient(90deg, #fcd116, #ffe066);
-            box-shadow: 0 0 10px rgba(252, 209, 22, 0.5);
+            background: linear-gradient(90deg, #fcd116, #ffee66);
+            box-shadow: 0 0 15px rgba(252, 209, 22, 0.6);
         }
         
         .stat-label {
             display: flex;
             justify-content: space-between;
-            font-size: 1.1rem;
-            margin-bottom: 5px;
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
         
         .stat-label i {
-            margin-right: 8px;
+            margin-right: 10px;
             color: #fcd116;
+            font-size: 1.4rem;
         }
         
         .location-display {
-            background: rgba(58, 117, 196, 0.8);
+            background: linear-gradient(135deg, rgba(58, 117, 196, 0.9), rgba(28, 87, 166, 0.9));
             border-color: #3a75c4;
             text-align: center;
-            padding: 12px 25px;
+            padding: 15px 30px;
         }
         
         .weapon-display {
-            background: rgba(158, 0, 96, 0.8);
+            background: linear-gradient(135deg, rgba(158, 0, 96, 0.9), rgba(128, 0, 66, 0.9));
             border-color: #9e0060;
             text-align: center;
-            padding: 12px 25px;
+            padding: 15px 30px;
         }
         
         /* Quête */
         #quest-indicator {
             position: absolute;
-            bottom: 20px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             width: 80%;
-            max-width: 800px;
+            max-width: 900px;
             z-index: 101;
+            animation: questSlide 0.5s ease-out;
+        }
+        
+        @keyframes questSlide {
+            0% { transform: translateX(-50%) translateY(100px); opacity: 0; }
+            100% { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
         
         .quest-container {
-            background: rgba(0, 0, 0, 0.85);
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(30, 30, 30, 0.95));
             border: 2px solid #009e60;
-            border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            padding: 25px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .quest-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #009e60, #00ffaa);
         }
         
         .quest-title {
             color: #fcd116;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
+            font-size: 1.4rem;
         }
         
         .quest-progress-bar {
-            height: 10px;
+            height: 12px;
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
+            border-radius: 6px;
             overflow: hidden;
-            margin: 8px 0;
+            margin: 12px 0;
+            position: relative;
         }
         
         .quest-progress {
             height: 100%;
-            background: linear-gradient(90deg, #009e60, #00cc88);
-            border-radius: 5px;
-            transition: width 0.5s ease;
+            background: linear-gradient(90deg, #009e60, #00ffaa);
+            border-radius: 6px;
+            transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 10px rgba(0, 255, 170, 0.5);
         }
         
         /* Messages et notifications */
@@ -259,31 +373,44 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(30, 30, 30, 0.98));
             border: 3px solid #fcd116;
-            border-radius: 15px;
-            padding: 25px 40px;
+            border-radius: 20px;
+            padding: 40px 60px;
             z-index: 200;
             text-align: center;
-            max-width: 600px;
+            max-width: 700px;
             display: none;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(25px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+            animation: messagePop 0.3s ease-out;
+        }
+        
+        @keyframes messagePop {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
         
         #notification {
             position: absolute;
-            top: 100px;
-            right: 20px;
-            background: rgba(0, 158, 96, 0.9);
+            top: 120px;
+            right: 30px;
+            background: linear-gradient(135deg, rgba(0, 158, 96, 0.95), rgba(0, 128, 76, 0.95));
             border: 2px solid #fcd116;
-            border-radius: 10px;
-            padding: 15px 25px;
+            border-radius: 15px;
+            padding: 20px 35px;
             z-index: 200;
             text-align: center;
-            max-width: 400px;
+            max-width: 450px;
             display: none;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(15px);
+            animation: notificationSlide 0.3s ease-out;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+        
+        @keyframes notificationSlide {
+            0% { transform: translateX(100px); opacity: 0; }
+            100% { transform: translateX(0); opacity: 1; }
         }
         
         /* Écran de pause */
@@ -293,19 +420,26 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.95));
             display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            backdrop-filter: blur(10px);
         }
         
         .pause-title {
-            font-size: 4rem;
+            font-size: 5rem;
             color: #fcd116;
-            margin-bottom: 40px;
-            text-shadow: 0 0 20px rgba(252, 209, 22, 0.7);
+            margin-bottom: 60px;
+            text-shadow: 0 0 30px rgba(252, 209, 22, 0.8);
+            animation: pulse 2s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
         }
         
         /* Inventaire */
@@ -314,55 +448,69 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80%;
-            height: 70%;
-            background: rgba(0, 0, 0, 0.95);
+            width: 85%;
+            height: 75%;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.98), rgba(30, 30, 30, 0.99));
             border: 3px solid #009e60;
-            border-radius: 20px;
-            padding: 30px;
+            border-radius: 25px;
+            padding: 40px;
             z-index: 1000;
             display: none;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(30px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+            animation: panelSlide 0.4s ease-out;
+        }
+        
+        @keyframes panelSlide {
+            0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
         
         .inventory-title {
             color: #fcd116;
-            font-size: 2.5rem;
+            font-size: 3rem;
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #009e60;
-            padding-bottom: 15px;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #009e60;
+            text-shadow: 0 0 20px rgba(252, 209, 22, 0.5);
         }
         
         .inventory-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
             height: 60%;
             overflow-y: auto;
-            padding: 10px;
+            padding: 15px;
+            border-radius: 15px;
+            background: rgba(0, 0, 0, 0.3);
         }
         
         .inventory-item {
-            background: rgba(58, 117, 196, 0.3);
+            background: linear-gradient(135deg, rgba(58, 117, 196, 0.4), rgba(28, 87, 166, 0.5));
             border: 2px solid #3a75c4;
-            border-radius: 10px;
-            padding: 15px;
+            border-radius: 15px;
+            padding: 20px;
             text-align: center;
             transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
         }
         
         .inventory-item:hover {
-            transform: translateY(-5px);
-            background: rgba(58, 117, 196, 0.5);
-            box-shadow: 0 5px 15px rgba(58, 117, 196, 0.4);
+            transform: translateY(-10px) scale(1.05);
+            background: linear-gradient(135deg, rgba(58, 117, 196, 0.6), rgba(28, 87, 166, 0.7));
+            box-shadow: 0 10px 20px rgba(58, 117, 196, 0.4);
+            border-color: #5a95e4;
         }
         
         .item-icon {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+            font-size: 3rem;
+            margin-bottom: 15px;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.3));
         }
         
         /* Croix de visée */
@@ -372,10 +520,17 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: #fcd116;
-            font-size: 30px;
-            text-shadow: 0 0 10px black;
+            font-size: 40px;
+            text-shadow: 0 0 15px black, 0 0 5px rgba(252, 209, 22, 0.5);
             z-index: 99;
             pointer-events: none;
+            animation: crosshairPulse 2s infinite;
+        }
+        
+        @keyframes crosshairPulse {
+            0% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
         }
         
         /* Contrôles mobiles */
@@ -384,7 +539,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            padding: 30px;
+            padding: 40px;
             display: none;
             z-index: 90;
             pointer-events: none;
@@ -397,35 +552,48 @@
         }
         
         .mobile-btn {
-            width: 70px;
-            height: 70px;
-            background: rgba(0, 158, 96, 0.8);
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, rgba(0, 158, 96, 0.9), rgba(0, 128, 76, 0.9));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 32px;
             color: white;
             border: 3px solid #fcd116;
             user-select: none;
             touch-action: manipulation;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
             transition: all 0.1s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .mobile-btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, transparent 30%, rgba(255,255,255,0.1) 100%);
         }
         
         .mobile-btn:active {
-            transform: scale(0.9);
-            background: rgba(0, 158, 96, 1);
+            transform: scale(0.85);
+            background: linear-gradient(135deg, rgba(0, 158, 96, 1), rgba(0, 128, 76, 1));
         }
         
         .joystick-area {
             position: relative;
-            width: 150px;
-            height: 150px;
-            background: rgba(0, 0, 0, 0.5);
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle at center, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.8));
             border-radius: 50%;
             border: 3px solid #fcd116;
             pointer-events: auto;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
         }
         
         .joystick {
@@ -433,91 +601,166 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 70px;
-            height: 70px;
-            background: rgba(0, 158, 96, 0.9);
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, rgba(0, 158, 96, 0.95), rgba(0, 128, 76, 0.95));
             border-radius: 50%;
             border: 3px solid #ffffff;
             transition: transform 0.1s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
         
         /* Instructions */
         .instructions {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px 20px;
-            border-radius: 10px;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(30, 30, 30, 0.9));
+            padding: 25px 30px;
+            border-radius: 15px;
             border: 2px solid #3a75c4;
-            max-width: 300px;
-            font-size: 0.9rem;
-            line-height: 1.4;
+            max-width: 350px;
+            font-size: 1rem;
+            line-height: 1.5;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
         }
         
         .instructions kbd {
-            background: #333;
-            padding: 3px 10px;
-            border-radius: 5px;
+            background: linear-gradient(135deg, #333, #555);
+            padding: 5px 12px;
+            border-radius: 8px;
             border: 1px solid #666;
             font-family: monospace;
-            margin: 0 3px;
-            font-size: 0.9rem;
+            margin: 0 5px;
+            font-size: 1rem;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+        }
+        
+        /* Minimap */
+        #minimap {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 200px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #fcd116;
+            border-radius: 50%;
+            z-index: 50;
+            backdrop-filter: blur(5px);
+            display: none;
         }
         
         /* Responsive */
-        @media (max-width: 1024px) {
-            .game-title { font-size: 3.5rem; }
-            .game-subtitle { font-size: 1.4rem; }
-            .hud-section { min-width: 200px; padding: 12px 15px; }
-            .stat-label { font-size: 1rem; }
+        @media (max-width: 1200px) {
+            .game-title { font-size: 4rem; }
+            .game-subtitle { font-size: 1.5rem; }
+            .hud-section { min-width: 240px; padding: 15px 20px; }
+        }
+        
+        @media (max-width: 992px) {
+            .game-title { font-size: 3rem; }
+            .game-subtitle { font-size: 1.3rem; }
+            .start-btn { padding: 15px 40px; font-size: 1.3rem; }
+            .instructions { display: none; }
+            #minimap { display: none; }
         }
         
         @media (max-width: 768px) {
             #mobile-controls { display: block; }
-            .instructions { display: none; }
-            .hud-top { flex-direction: column; gap: 15px; }
+            .hud-top { flex-direction: column; gap: 20px; }
             .hud-right { align-items: flex-start; }
             .game-title { font-size: 2.5rem; }
-            .game-subtitle { font-size: 1.2rem; }
-            .start-btn { padding: 15px 30px; font-size: 1.2rem; }
+            .game-subtitle { font-size: 1.1rem; max-width: 90%; }
+            .start-btn { padding: 12px 30px; font-size: 1.1rem; }
+            .mobile-btn { width: 70px; height: 70px; font-size: 28px; }
+            .joystick-area { width: 150px; height: 150px; }
+            .joystick { width: 70px; height: 70px; }
         }
         
         @media (max-width: 480px) {
             .game-title { font-size: 2rem; }
-            .hud-section { min-width: auto; width: 100%; }
+            .hud-section { min-width: auto; width: 100%; padding: 12px 15px; }
             .mobile-btn { width: 60px; height: 60px; font-size: 24px; }
-            .joystick-area { width: 120px; height: 120px; }
+            .joystick-area { width: 130px; height: 130px; }
             .joystick { width: 60px; height: 60px; }
+            .btn-group { flex-direction: column; align-items: center; }
+        }
+        
+        /* Animations générales */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .shake {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+        
+        /* Particules */
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
         }
     </style>
 </head>
 <body>
+    <!-- Écran de chargement -->
+    <div id="loading-screen">
+        <h1 class="game-title" style="font-size: 3.5rem;">CHARGEMENT</h1>
+        <div class="loader">
+            <div class="loader-bar" id="loader-bar"></div>
+        </div>
+        <p id="loading-text" style="color: #fcd116; font-size: 1.2rem; margin-top: 20px;">Initialisation...</p>
+    </div>
+    
     <!-- Écran de démarrage -->
-    <div id="start-screen">
+    <div id="start-screen" style="display: none;">
         <h1 class="game-title">🇬🇦 RPG GABONAIS 3D</h1>
         <p class="game-subtitle">
             Explorez les villes du Gabon dans cette aventure unique ! 
             Combattez les bandits, aidez les habitants et découvrez les secrets de Libreville, 
-            Port-Gentil et Franceville.
+            Port-Gentil et Franceville. Une expérience 3D immersive avec des graphismes époustouflants.
         </p>
         
         <div class="btn-group">
-            <button id="start-btn" class="start-btn">
-                <i class="fas fa-play"></i> Nouvelle Partie
+            <button id="start-btn" class="start-btn fade-in" style="animation-delay: 0.1s;">
+                <i class="fas fa-play"></i> NOUVELLE PARTIE
             </button>
-            <button id="continue-btn" class="start-btn" style="background: linear-gradient(45deg, #3a75c4, #5a95e4);">
-                <i class="fas fa-redo"></i> Continuer
+            <button id="continue-btn" class="start-btn fade-in" style="background: linear-gradient(45deg, #3a75c4, #5a95e4); animation-delay: 0.2s;">
+                <i class="fas fa-redo"></i> CONTINUER
             </button>
-            <button id="controls-btn" class="start-btn" style="background: linear-gradient(45deg, #9e0060, #be2080);">
-                <i class="fas fa-gamepad"></i> Contrôles
+            <button id="settings-btn" class="start-btn fade-in" style="background: linear-gradient(45deg, #9e0060, #be2080); animation-delay: 0.3s;">
+                <i class="fas fa-cog"></i> RÉGLAGES
+            </button>
+            <button id="controls-btn" class="start-btn fade-in" style="background: linear-gradient(45deg, #d2691e, #f28c28); animation-delay: 0.4s;">
+                <i class="fas fa-gamepad"></i> CONTRÔLES
             </button>
         </div>
         
-        <div style="margin-top: 50px; color: #aaa; font-size: 0.9rem;">
-            <p>Déplacez-vous avec ZQSD, tirez avec CLIC GAUCHE, interagissez avec E</p>
-            <p>Développé avec Three.js - Un jeu 100% Gabonais</p>
+        <div style="margin-top: 60px; color: #aaa; font-size: 0.9rem; max-width: 800px;">
+            <p>Déplacez-vous avec ZQSD/WASD • Sauter avec ESPACE • Tirer avec CLIC GAUCHE • Interagir avec E</p>
+            <p>Développé avec Three.js • Un jeu 100% Gabonais • Musique originale • Graphismes 3D avancés</p>
+            <p style="margin-top: 20px; color: #fcd116;">⚠️ Utilisez des écouteurs pour une meilleure expérience audio</p>
         </div>
+        
+        <div class="particles" id="start-particles"></div>
     </div>
     
     <!-- Conteneur du jeu -->
@@ -538,6 +781,14 @@
                         </div>
                         
                         <div class="stat-label">
+                            <span><i class="fas fa-shield-alt"></i> ARMURE</span>
+                            <span id="armor-text">50/50</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="stat-fill health-fill" id="armor-bar" style="width: 100%; background: linear-gradient(90deg, #3a75c4, #5a95e4);"></div>
+                        </div>
+                        
+                        <div class="stat-label">
                             <span><i class="fas fa-star"></i> XP</span>
                             <span id="xp-text">0/100</span>
                         </div>
@@ -549,6 +800,9 @@
                     <div class="hud-section location-display">
                         <i class="fas fa-map-marker-alt"></i>
                         <span id="location-text">Libreville, Glass</span>
+                        <div style="font-size: 0.9rem; margin-top: 5px; opacity: 0.8;">
+                            Niveau <span id="level-text">1</span> • Jour <span id="day-text">1</span>
+                        </div>
                     </div>
                 </div>
                 
@@ -571,11 +825,19 @@
                             <span><i class="fas fa-trophy"></i> SCORE</span>
                             <span id="score">0</span>
                         </div>
+                        
+                        <div class="stat-label">
+                            <span><i class="fas fa-gem"></i> ARGENT</span>
+                            <span id="money">0</span> FCFA
+                        </div>
                     </div>
                     
                     <div class="hud-section weapon-display">
                         <i class="fas fa-gun"></i>
                         <span id="weapon-text">Pistolet Makarov</span>
+                        <div style="font-size: 0.9rem; margin-top: 8px; opacity: 0.8;">
+                            <i class="fas fa-bolt"></i> Dégâts: <span id="weapon-damage">15</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -587,18 +849,21 @@
                 <div class="quest-title">
                     <i class="fas fa-scroll"></i> QUÊTE ACTIVE
                 </div>
-                <div id="quest-text" style="margin-bottom: 10px;"></div>
+                <div id="quest-text" style="margin-bottom: 15px; font-size: 1.1rem; line-height: 1.4;"></div>
                 <div class="quest-progress-bar">
                     <div id="quest-progress" class="quest-progress" style="width: 0%"></div>
                 </div>
-                <div style="text-align: center; font-size: 0.9rem; color: #aaa;">
-                    Progression: <span id="quest-progress-text">0/5</span>
+                <div style="text-align: center; font-size: 1rem; color: #aaa; margin-top: 10px;">
+                    Progression: <span id="quest-progress-text">0/5</span> • Récompense: <span id="quest-reward">100 XP</span>
                 </div>
             </div>
         </div>
         
         <!-- Croix de visée -->
-        <div id="crosshair">+</div>
+        <div id="crosshair">✛</div>
+        
+        <!-- Minimap -->
+        <div id="minimap"></div>
         
         <!-- Contrôles mobiles -->
         <div id="mobile-controls">
@@ -607,20 +872,20 @@
                     <div class="joystick" id="joystick"></div>
                 </div>
                 
-                <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="display: flex; flex-direction: column; gap: 25px;">
                     <div class="mobile-btn" id="mobile-jump">
                         <i class="fas fa-arrow-up"></i>
                     </div>
                     <div class="mobile-btn" id="mobile-interact">
-                        <i class="fas fa-comment"></i>
+                        <i class="fas fa-handshake"></i>
                     </div>
                 </div>
                 
-                <div style="display: flex; flex-direction: column; gap: 20px;">
-                    <div class="mobile-btn" id="mobile-shoot" style="background: rgba(255, 68, 68, 0.9);">
+                <div style="display: flex; flex-direction: column; gap: 25px;">
+                    <div class="mobile-btn" id="mobile-shoot" style="background: linear-gradient(135deg, rgba(255, 68, 68, 0.9), rgba(200, 0, 0, 0.9));">
                         <i class="fas fa-crosshairs"></i>
                     </div>
-                    <div class="mobile-btn" id="mobile-inventory" style="background: rgba(158, 0, 96, 0.9);">
+                    <div class="mobile-btn" id="mobile-inventory" style="background: linear-gradient(135deg, rgba(158, 0, 96, 0.9), rgba(128, 0, 66, 0.9));">
                         <i class="fas fa-backpack"></i>
                     </div>
                 </div>
@@ -629,43 +894,57 @@
         
         <!-- Instructions PC -->
         <div class="instructions">
-            <div style="color: #fcd116; font-weight: bold; margin-bottom: 8px;">
+            <div style="color: #fcd116; font-weight: bold; margin-bottom: 12px; font-size: 1.2rem;">
                 <i class="fas fa-keyboard"></i> CONTRÔLES
             </div>
             <div><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> : Déplacement</div>
             <div><kbd>ESPACE</kbd> : Sauter</div>
             <div><kbd>CLIC GAUCHE</kbd> : Tirer</div>
+            <div><kbd>CLIC DROIT</kbd> : Viseur</div>
             <div><kbd>E</kbd> : Interagir</div>
             <div><kbd>I</kbd> : Inventaire</div>
             <div><kbd>ECHAP</kbd> : Pause</div>
             <div><kbd>F</kbd> : Lampe torche</div>
             <div><kbd>1-4</kbd> : Changer arme</div>
+            <div><kbd>TAB</kbd> : Carte</div>
+            <div style="margin-top: 15px; color: #fcd116; font-size: 0.9rem;">
+                <i class="fas fa-volume-up"></i> Audio: <span id="volume-text">70%</span>
+            </div>
         </div>
     </div>
     
     <!-- Message box -->
     <div id="message-box">
-        <div id="message-text" style="font-size: 1.3rem; line-height: 1.5;"></div>
+        <div id="message-text" style="font-size: 1.4rem; line-height: 1.6;"></div>
+        <button id="message-ok" style="margin-top: 30px; padding: 10px 30px; background: #009e60; color: white; border: none; border-radius: 50px; font-size: 1.1rem; cursor: pointer;">OK</button>
     </div>
     
     <!-- Notification -->
     <div id="notification">
-        <div id="notification-text" style="font-size: 1.1rem; font-weight: bold;"></div>
+        <div id="notification-text" style="font-size: 1.2rem; font-weight: bold; line-height: 1.4;"></div>
     </div>
     
     <!-- Écran de pause -->
     <div id="pause-screen">
         <h2 class="pause-title">PAUSE</h2>
-        <div style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
-            <button id="resume-btn" class="start-btn" style="width: 300px;">
-                <i class="fas fa-play"></i> Reprendre
+        <div style="display: flex; flex-direction: column; gap: 25px; align-items: center; width: 100%; max-width: 500px;">
+            <button id="resume-btn" class="start-btn" style="width: 100%; max-width: 400px;">
+                <i class="fas fa-play"></i> REPRENDRE
             </button>
-            <button id="save-btn" class="start-btn" style="background: linear-gradient(45deg, #3a75c4, #5a95e4); width: 300px;">
-                <i class="fas fa-save"></i> Sauvegarder
+            <button id="save-btn" class="start-btn" style="background: linear-gradient(45deg, #3a75c4, #5a95e4); width: 100%; max-width: 400px;">
+                <i class="fas fa-save"></i> SAUVEGARDER
             </button>
-            <button id="quit-btn" class="start-btn" style="background: linear-gradient(45deg, #9e0060, #be2080); width: 300px;">
-                <i class="fas fa-home"></i> Menu principal
+            <button id="settings-menu-btn" class="start-btn" style="background: linear-gradient(45deg, #d2691e, #f28c28); width: 100%; max-width: 400px;">
+                <i class="fas fa-cog"></i> RÉGLAGES
             </button>
+            <button id="quit-btn" class="start-btn" style="background: linear-gradient(45deg, #9e0060, #be2080); width: 100%; max-width: 400px;">
+                <i class="fas fa-home"></i> MENU PRINCIPAL
+            </button>
+        </div>
+        
+        <div style="position: absolute; bottom: 40px; text-align: center; color: #aaa; max-width: 800px; padding: 0 20px;">
+            <p style="margin-bottom: 10px;">Temps de jeu: <span id="pause-time">0:00</span> • Score: <span id="pause-score">0</span> • Ennemis tués: <span id="pause-kills">0</span></p>
+            <p style="font-size: 0.9rem;">RPG Gabonais 3D • Version 1.0 • © 2024</p>
         </div>
     </div>
     
@@ -675,30 +954,319 @@
             <i class="fas fa-backpack"></i> INVENTAIRE
         </h2>
         
-        <div id="inventory-items" class="inventory-grid">
-            <!-- Les items seront ajoutés dynamiquement ici -->
-        </div>
-        
-        <div style="display: flex; justify-content: space-around; margin-top: 20px;">
-            <div style="background: rgba(0, 0, 0, 0.5); padding: 15px; border-radius: 10px; text-align: center; min-width: 150px;">
-                <div style="color: #fcd116; font-weight: bold;">STATISTIQUES</div>
-                <div>Niveau: <span id="inv-level">1</span></div>
-                <div>XP: <span id="inv-xp">0/100</span></div>
-                <div>Santé: <span id="inv-health">100/100</span></div>
-                <div>Ennemis tués: <span id="inv-kills">0</span></div>
-                <div>Score: <span id="inv-score">0</span></div>
-                <div>Temps: <span id="inv-time">0s</span></div>
+        <div style="display: flex; gap: 30px; height: 70%;">
+            <div style="flex: 2; display: flex; flex-direction: column;">
+                <div style="color: #fcd116; font-size: 1.5rem; margin-bottom: 15px;">
+                    <i class="fas fa-box-open"></i> OBJETS
+                </div>
+                <div id="inventory-items" class="inventory-grid">
+                    <!-- Les items seront ajoutés dynamiquement ici -->
+                </div>
             </div>
             
-            <div style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
-                <button id="close-inventory" class="start-btn" style="padding: 12px 30px;">
-                    <i class="fas fa-times"></i> Fermer
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+                <div style="background: linear-gradient(135deg, rgba(0, 0, 0, 0.6), rgba(30, 30, 30, 0.7)); padding: 25px; border-radius: 15px; border: 2px solid #009e60;">
+                    <div style="color: #fcd116; font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; text-align: center;">
+                        <i class="fas fa-chart-bar"></i> STATISTIQUES
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>Niveau:</div><div><span id="inv-level">1</span></div>
+                        <div>XP:</div><div><span id="inv-xp">0/100</span></div>
+                        <div>Santé:</div><div><span id="inv-health">100/100</span></div>
+                        <div>Armure:</div><div><span id="inv-armor">50/50</span></div>
+                        <div>Ennemis tués:</div><div><span id="inv-kills">0</span></div>
+                        <div>Score:</div><div><span id="inv-score">0</span></div>
+                        <div>Argent:</div><div><span id="inv-money">0</span> FCFA</div>
+                        <div>Temps:</div><div><span id="inv-time">0s</span></div>
+                        <div>Quêtes:</div><div><span id="inv-quests">0</span>/<span id="inv-quests-total">5</span></div>
+                    </div>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, rgba(58, 117, 196, 0.6), rgba(28, 87, 166, 0.7)); padding: 25px; border-radius: 15px; border: 2px solid #3a75c4;">
+                    <div style="color: #fcd116; font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; text-align: center;">
+                        <i class="fas fa-user"></i> ÉQUIPEMENT
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div><i class="fas fa-tshirt"></i> Armure: <span id="inv-equip-armor">Standard</span></div>
+                        <div><i class="fas fa-hat-cowboy"></i> Casque: <span id="inv-equip-helmet">Aucun</span></div>
+                        <div><i class="fas fa-ring"></i> Anneaux: <span id="inv-equip-rings">0/2</span></div>
+                        <div><i class="fas fa-gem"></i> Amulette: <span id="inv-equip-amulet">Aucune</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; border-top: 2px solid #009e60;">
+            <div style="display: flex; gap: 15px;">
+                <button id="close-inventory" class="start-btn" style="padding: 12px 40px;">
+                    <i class="fas fa-times"></i> FERMER
                 </button>
+                <button id="sort-inventory" class="start-btn" style="background: linear-gradient(45deg, #d2691e, #f28c28); padding: 12px 40px;">
+                    <i class="fas fa-sort-alpha-down"></i> TRIER
+                </button>
+            </div>
+            
+            <div style="display: flex; align-items: center; color: #fcd116; font-size: 1.1rem;">
+                <i class="fas fa-weight-hanging"></i> Poids: <span id="inv-weight">0</span>/<span id="inv-max-weight">100</span> kg
             </div>
         </div>
     </div>
     
-    <!-- Scripts -->
+    <!-- Script principal -->
+    <script>
+    // Script d'initialisation simplifié
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM chargé, initialisation en cours...');
+        
+        // Simulation de chargement
+        var loaderBar = document.getElementById('loader-bar');
+        var loadingText = document.getElementById('loading-text');
+        var loadingScreen = document.getElementById('loading-screen');
+        var startScreen = document.getElementById('start-screen');
+        
+        var progress = 0;
+        var loadingInterval = setInterval(function() {
+            progress += 10;
+            loaderBar.style.width = progress + '%';
+            
+            if (progress <= 30) {
+                loadingText.textContent = 'Chargement des assets...';
+            } else if (progress <= 60) {
+                loadingText.textContent = 'Initialisation de Three.js...';
+            } else if (progress <= 90) {
+                loadingText.textContent = 'Préparation du jeu...';
+            } else {
+                loadingText.textContent = 'Prêt!';
+                clearInterval(loadingInterval);
+                
+                // Afficher l'écran de démarrage après un court délai
+                setTimeout(function() {
+                    loadingScreen.style.display = 'none';
+                    startScreen.style.display = 'flex';
+                }, 500);
+            }
+        }, 200);
+        
+        // Gestionnaire de boutons basique
+        document.getElementById('start-btn').addEventListener('click', function() {
+            console.log('Nouvelle partie démarrée');
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            
+            // Pour le moment, afficher un message
+            showMessage('🚀 Nouvelle partie démarrée! Bienvenue au RPG Gabonais 3D!', 3000);
+        });
+        
+        document.getElementById('continue-btn').addEventListener('click', function() {
+            showMessage('⚠️ Fonctionnalité en développement. Utilisez "Nouvelle Partie" pour l\'instant.', 3000);
+        });
+        
+        document.getElementById('settings-btn').addEventListener('click', function() {
+            showSettings();
+        });
+        
+        document.getElementById('controls-btn').addEventListener('click', function() {
+            showMessage('🎮 CONTRÔLES COMPLETS:\n\n' +
+                       'Z/W = Avancer\nS = Reculer\nQ/A = Gauche\nD = Droite\n' +
+                       'ESPACE = Sauter\nSHIFT = Sprint\n' +
+                       'CLIC GAUCHE = Tirer\nCLIC DROIT = Viseur\n' +
+                       'E = Interagir\nF = Lampe torche\nI = Inventaire\n' +
+                       'TAB = Carte\nECHAP = Pause\n1-6 = Armes\n' +
+                       'R = Recharger\nC = S\'accroupir\nV = Mode véhicule\n' +
+                       'M = Carte monde\nJ = Journal\nK = Compétences\n' +
+                       'U = Construire\nO = Options\nP = Photo mode', 8000);
+        });
+        
+        // Boutons pause
+        document.getElementById('resume-btn').addEventListener('click', function() {
+            document.getElementById('pause-screen').style.display = 'none';
+        });
+        
+        document.getElementById('save-btn').addEventListener('click', function() {
+            showMessage('💾 Partie sauvegardée!', 2000);
+        });
+        
+        document.getElementById('settings-menu-btn').addEventListener('click', function() {
+            showSettings();
+        });
+        
+        document.getElementById('quit-btn').addEventListener('click', function() {
+            if (confirm('Retourner au menu principal?')) {
+                document.getElementById('pause-screen').style.display = 'none';
+                document.getElementById('game-container').style.display = 'none';
+                document.getElementById('start-screen').style.display = 'flex';
+            }
+        });
+        
+        // Bouton fermer inventaire
+        document.getElementById('close-inventory').addEventListener('click', function() {
+            document.getElementById('inventory-panel').style.display = 'none';
+        });
+        
+        // Bouton message OK
+        document.getElementById('message-ok').addEventListener('click', function() {
+            document.getElementById('message-box').style.display = 'none';
+        });
+        
+        // Simulation de touches pour démo
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var pauseScreen = document.getElementById('pause-screen');
+                if (pauseScreen.style.display === 'flex') {
+                    pauseScreen.style.display = 'none';
+                } else {
+                    pauseScreen.style.display = 'flex';
+                }
+            }
+            
+            if (e.key === 'i' || e.key === 'I') {
+                var inventoryPanel = document.getElementById('inventory-panel');
+                if (inventoryPanel.style.display === 'block') {
+                    inventoryPanel.style.display = 'none';
+                } else {
+                    inventoryPanel.style.display = 'block';
+                    updateInventoryDemo();
+                }
+            }
+        });
+        
+        // Fonctions utilitaires
+        function showMessage(text, duration) {
+            var messageBox = document.getElementById('message-box');
+            var messageText = document.getElementById('message-text');
+            
+            if (messageBox && messageText) {
+                messageText.textContent = text;
+                messageBox.style.display = 'block';
+                
+                if (duration > 0) {
+                    setTimeout(function() {
+                        if (messageBox.style.display === 'block') {
+                            messageBox.style.display = 'none';
+                        }
+                    }, duration);
+                }
+            } else {
+                alert(text);
+            }
+        }
+        
+        function showSettings() {
+            var settingsHTML = `
+                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1001; backdrop-filter: blur(20px);">
+                    <h2 class="pause-title" style="margin-bottom: 50px;">RÉGLAGES</h2>
+                    
+                    <div style="width: 100%; max-width: 600px; background: rgba(30,30,30,0.8); padding: 40px; border-radius: 20px; border: 2px solid #fcd116;">
+                        <div style="margin-bottom: 30px;">
+                            <div style="color: #fcd116; font-size: 1.3rem; margin-bottom: 15px; display: flex; justify-content: space-between;">
+                                <span><i class="fas fa-volume-up"></i> Volume</span>
+                                <span id="settings-volume-text">70%</span>
+                            </div>
+                            <input type="range" id="volume-slider" min="0" max="100" value="70" style="width: 100%; height: 15px; border-radius: 10px; background: #333; outline: none; -webkit-appearance: none;">
+                        </div>
+                        
+                        <div style="margin-bottom: 30px;">
+                            <div style="color: #fcd116; font-size: 1.3rem; margin-bottom: 15px;">
+                                <i class="fas fa-video"></i> Graphismes
+                            </div>
+                            <select id="graphics-quality" style="width: 100%; padding: 12px; background: #333; color: white; border: 2px solid #009e60; border-radius: 10px; font-size: 1.1rem;">
+                                <option value="low">Faible (pour performances)</option>
+                                <option value="medium" selected>Moyen (équilibré)</option>
+                                <option value="high">Élevé (meilleure qualité)</option>
+                                <option value="ultra">Ultra (graphismes maximum)</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 40px;">
+                            <div style="color: #fcd116; font-size: 1.3rem; margin-bottom: 15px;">
+                                <i class="fas fa-mouse-pointer"></i> Sensibilité souris
+                            </div>
+                            <input type="range" id="mouse-sensitivity" min="1" max="10" value="5" style="width: 100%; height: 15px; border-radius: 10px; background: #333; outline: none; -webkit-appearance: none;">
+                        </div>
+                        
+                        <div style="display: flex; gap: 20px; justify-content: center;">
+                            <button id="settings-back" class="start-btn" style="padding: 15px 50px;">
+                                <i class="fas fa-arrow-left"></i> RETOUR
+                            </button>
+                            <button id="settings-apply" class="start-btn" style="background: linear-gradient(45deg, #009e60, #00cc88); padding: 15px 50px;">
+                                <i class="fas fa-check"></i> APPLIQUER
+                            </button>
+                            <button id="settings-default" class="start-btn" style="background: linear-gradient(45deg, #d2691e, #f28c28); padding: 15px 50px;">
+                                <i class="fas fa-undo"></i> DÉFAUT
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button id="settings-close" class="start-btn" style="margin-top: 40px; background: linear-gradient(45deg, #9e0060, #be2080); padding: 15px 50px;">
+                        <i class="fas fa-times"></i> FERMER
+                    </button>
+                </div>
+            `;
+            
+            var settingsDiv = document.createElement('div');
+            settingsDiv.innerHTML = settingsHTML;
+            settingsDiv.id = 'temp-settings-screen';
+            document.body.appendChild(settingsDiv);
+            
+            // Gestionnaires d'événements pour les paramètres
+            document.getElementById('settings-back').addEventListener('click', function() {
+                document.getElementById('temp-settings-screen').remove();
+            });
+            
+            document.getElementById('settings-close').addEventListener('click', function() {
+                document.getElementById('temp-settings-screen').remove();
+            });
+            
+            document.getElementById('settings-apply').addEventListener('click', function() {
+                showMessage('✅ Paramètres appliqués!', 2000);
+                document.getElementById('temp-settings-screen').remove();
+            });
+            
+            document.getElementById('settings-default').addEventListener('click', function() {
+                document.getElementById('volume-slider').value = 70;
+                document.getElementById('graphics-quality').value = 'medium';
+                document.getElementById('mouse-sensitivity').value = 5;
+                showMessage('⚙️ Paramètres réinitialisés', 2000);
+            });
+            
+            // Mettre à jour les valeurs des sliders
+            document.getElementById('volume-slider').addEventListener('input', function() {
+                document.getElementById('settings-volume-text').textContent = this.value + '%';
+            });
+        }
+        
+        function updateInventoryDemo() {
+            var inventoryItems = document.getElementById('inventory-items');
+            var demoItems = [
+                { name: 'Kit de soin', icon: '❤️', description: 'Restaure 25 points de santé', quantity: 3 },
+                { name: 'Munitions', icon: '📦', description: '30 balles', quantity: 2 },
+                { name: 'Clé en or', icon: '🗝️', description: 'Ouvre les portes spéciales', quantity: 1 },
+                { name: 'Pièces d\'or', icon: '💰', description: '100 FCFA', quantity: 150 },
+                { name: 'Ndish de Ndolé', icon: '🍲', description: 'Plat traditionnel gabonais', quantity: 2 },
+                { name: 'Bouteille d\'eau', icon: '💧', description: 'Étanche la soif', quantity: 1 }
+            ];
+            
+            inventoryItems.innerHTML = '';
+            
+            demoItems.forEach(function(item, index) {
+                var itemDiv = document.createElement('div');
+                itemDiv.className = 'inventory-item';
+                itemDiv.innerHTML = `
+                    <div class="item-icon">${item.icon}</div>
+                    <div style="font-weight: bold; margin-bottom: 5px;">${item.name}</div>
+                    <div style="font-size: 0.9rem; opacity: 0.8;">${item.description}</div>
+                    <div style="margin-top: 10px; font-size: 0.8rem;">Quantité: ${item.quantity}</div>
+                `;
+                inventoryItems.appendChild(itemDiv);
+            });
+        }
+        
+        // Initialiser les événements de base pour la démo
+        console.log('Interface de démo initialisée');
+    });
+    </script>
+    
+    <!-- Script de jeu principal -->
     <script src="game.js"></script>
 </body>
 </html>
